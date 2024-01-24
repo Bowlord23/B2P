@@ -1,0 +1,108 @@
+#define BLYNK_TEMPLATE_ID "TMPL4xyvx48la"
+#define BLYNK_TEMPLATE_NAME "Quickstart Template"
+#define BLYNK_AUTH_TOKEN "Sf_5SE_X1w23hGz6IBXOJ9fCSNmcvvWr"
+
+#define BLYNK_PRINT Serial
+
+
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+
+char ssid[] = "aaaaaaaa";
+char pass[] = "";
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C LCD(0x27,16,2);
+int Button;
+String swit_temp, swit_mot;
+
+int switcher = 0;
+
+uint32_t tmr1;
+
+#include <SPI.h>
+#define MAX6675_CS   D6
+#define MAX6675_SO   D7
+#define MAX6675_SCK  D5
+int temp;
+int needTemp = 0;
+
+void LCD1() {
+   LCD.setCursor(1, 0);
+   LCD.print("Temp:");
+   LCD.setCursor(7, 0);
+   LCD.print((String(temp) + String(" ") + String(swit_temp)+ String("     ")));
+   LCD.setCursor(1, 1);
+   LCD.print("Motor:");
+   LCD.setCursor(8, 1);
+   LCD.print(String(swit_mot) + String("   "));
+   }
+
+double readThermocouple() {
+  uint16_t v;
+  pinMode(MAX6675_CS, OUTPUT);
+  pinMode(MAX6675_SO, INPUT);
+  pinMode(MAX6675_SCK, OUTPUT);
+  digitalWrite(MAX6675_CS, LOW);
+  delay(1);
+  v = shiftIn(MAX6675_SO, MAX6675_SCK, MSBFIRST);
+  v <<= 8;
+  v |= shiftIn(MAX6675_SO, MAX6675_SCK, MSBFIRST);
+  digitalWrite(MAX6675_CS, HIGH);
+  if (v & 0x4) {return NAN;}
+  v >>= 3;
+  return v*0.25;}
+
+
+BLYNK_WRITE(V0) 
+{
+  if(param.asInt() == 1){needTemp = 0;}
+  else {needTemp = 1;}
+}
+
+BLYNK_WRITE(V1) 
+{
+  if(param.asInt() == 1){switcher = 0;}
+  else {switcher = 1;}
+}
+
+void plast()
+{
+  if(digitalRead(D8) == 1){Blynk.virtualWrite(V2, 1);}
+  else {Blynk.virtualWrite(V2, 0);}
+}
+
+void offon() {
+  if (needTemp == 0){swit_temp = "off"; digitalWrite(D3,0);}
+  if (needTemp == 1){swit_temp = "on"; digitalWrite(D3,1);}
+  if (switcher == 0){swit_mot = "stop"; digitalWrite(D4,0);}
+  if (switcher == 1){swit_mot = "normal"; digitalWrite(D4,1);}
+  }
+
+void setup() {
+  LCD.init();
+  LCD.backlight();
+  pinMode(D3,OUTPUT); 
+  pinMode(D4,OUTPUT);
+  Serial.begin(115200);
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+  WiFi.printDiag(Serial);
+}
+
+void temp2() {  
+    temp = round(readThermocouple());
+    Serial.println(temp);
+    }
+
+void loop() {
+  LCD1();
+  Blynk.run();
+  plast();
+  Blynk.virtualWrite(V5, temp);
+  offon();
+  if (millis() - tmr1 >= 1000) {  
+    tmr1 = millis();  
+    temp2();                
+  }
+}
